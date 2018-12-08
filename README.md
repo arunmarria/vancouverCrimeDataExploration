@@ -1,2 +1,19 @@
 # Exploration City of Vancouver's crime data
-The project uses City of Vancouver's publicly available data to analyze crime numbers and patterns. 
+Historic information of Crimes in a city can be used to prevent crimes similar nature in future. Many city bodies are already doing this. In this data analysis project, I will explore the City of Vancouver's crime data(2003 - 2017) and see if we can see any trends in crime occurrences which in turn can help in predicting future crimes. Details of project can found in [Markdown document](https://github.com/arunmarria/vancouverCrimeDataExploration/blob/master/yvr_crime_data.md)
+
+
+!(CPT105324340_hd.jpg)
+
+The project uses [City of Vancouver's](https://vancouver.ca/) publicly available [data catalogue](https://data.vancouver.ca/datacatalogue/crime-data.htm)to analyze crime numbers and patterns. 
+
+### Disclaimer
+The release of Vancouver Police Department (VPD) crime data is intended to enhance community awareness of policing activity in Vancouver. Users are cautioned not to rely on the information provided to make decisions about the specific safety level of a specific location or area. By using this data the user agrees and understands that neither the Vancouver Police Department, Vancouver Police Board nor the City of Vancouver assumes liability for any decisions made or actions taken or not taken by the user in reliance upon any information or data provided. 
+
+While every effort has been made to be transparent in this process, users should be aware that this data is designed to provide individuals with a general overview of incidents falling into several crime categories. The information provided therefore does not reflect the total number of calls or complaints made to the VPD. Please refer to the FAQ (http://geodash.vpd.ca/docs/VPD%20GeoDASH%20FAQs.pdf) for further details. The data provided is based upon information contained in the VPD Records Management System. The crime classification and file status may change at any time based on the dynamic nature of police investigations. The VPD has taken great care to protect the privacy of all parties involved in the incidents reported. No personal or identifying information has been provided in the data. Locations for reported incidents involving Offences Against a Person have been deliberately randomized to several blocks and offset to an intersection. No time or street location name will be provided for these offences. For property related offences, the VPD has provided the location to the hundred block of these incidents within the general area of the block. All data must be considered offset and users should not interpret any locations as related to a specific person or specific property.
+
+
+
+
+
+
+
