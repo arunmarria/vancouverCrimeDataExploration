@@ -1,7 +1,9 @@
 ---
 title: "Analysis of Crimes in City of Vancouver"
+
 output:
       html_document:
+        toc: true
         keep_md: true
 
 ---
