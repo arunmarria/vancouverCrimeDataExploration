@@ -1,0 +1,511 @@
+---
+title: "Analysis of Crimes in City of Vancouver"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Introduction
+
+Historic information of Crimes in a city can be used to prevent crimes similar nature in future. Many city bodies are already doing this. In this data analysis project, I  will explore the City of Vancouver's crime data(2003 - 2017) and see if we can see any trends in crime occurrences which in turn can help in predicting future crimes.
+
+
+
+### Dataset
+Crime data is made public by City of Vancouver on their website. The dataset used here has following attributes
+
+* TYPE: The type of crime activities
+* YEAR: year
+* MONTH: Month of the year
+* DAY: Day of the month
+* HOUR: Hour in 24 hour format for reported crime
+* MINUTE: Minute of the hour for reported crime
+* HUNDRED_BLOCK: Generalized location of the report crime activity
+* NEIGHBOURHOOD: The Vancouver Police Department uses the Statistics Canada definition
+* X: Coordinate values are projected in UTM Zone 10. 
+* Y: Coordinate values are projected in UTM Zone 10.
+
+More deails about the data set can be found at open data catalog of the City of Vancouver https://data.vancouver.ca/datacatalogue/crime-data.htm
+
+
+
+### Loading dataset and libraries 
+
+
+The downloaded csv data from City's catalog and other libraries used are loaded
+
+```{r load_data}
+##loading data
+
+crime_data <- read.csv("crime_csv_all_years.csv", header = TRUE)
+
+##loading  reqlibraries
+ ## for projecting long and latitude values on map
+library(dplyr)
+library(lubridate) ## for timestamp info
+library(ggplot2)
+library(repr)
+library(rgdal)
+library(proj4)
+library(mapview)
+
+```
+
+
+Basic summary functions on dataset
+
+
+```{r summary}
+
+head(crime_data)
+
+tail(crime_data)
+
+str(crime_data)
+
+summary(crime_data)
+
+```
+
+
+### Data preparation
+
+Some data cleaning and prepartion is required before any analysis. 
+
+
+Later during exploration, I will be plotting Crimes of type theft of/from vehicles on actual city's map so conversion of X and Y coordinates to latitude and longitude values is required. Following chunk of code does that and appends corresponding columns to dataset replacing X and Y coordinates. 
+
+
+```{r}
+
+
+## converting x y corrdinates to latitude and longitude respectively'
+proj4string<-"+proj=utm +zone=10 +datum=NAD83 +units=m +no_defs +ellps=GRS80 +towgs84=0,0,0"
+
+pj <- project(crime_data[, c('X', 'Y')],proj4string, inverse = TRUE)
+
+
+##Appending columns to data set
+crime_data<-cbind(crime_data,pj)
+
+## changing colnames to latitude and longitude respectively for appeneded columns
+colnames(crime_data)[11] <-"lon"
+colnames(crime_data)[12] <-"lat"
+
+## removing x and y coordinates
+
+crime_data <- select(crime_data, -c('X','Y'))
+```
+
+
+On exploring dataset, it is found that location information is **not revealed and kept private** for certain crime categories. So I am setting the neighbourhood of those entries as "Not revealed"
+
+```{r}
+head((crime_data %>%  filter(NEIGHBOURHOOD=="")),5)
+
+levels(crime_data$NEIGHBOURHOOD)[1] <- "Not revealed"
+
+```
+
+As we have latitude/longitude and neighbourhood information, hundred's block information is removed from dataset. 
+
+
+```{r}
+crime_data <- select(crime_data, -c("HUNDRED_BLOCK"))
+```
+
+
+The time information in dataset is scattered in YEAR, MONTH, HOUR, MINUTE,SECOND columns. Combining it into a single **TIMESTAMP** column using **lubridate** package. This will be quite helpful in later analyzing crime data based on timestamp.
+
+
+```{r timestamp}
+
+##mutating timestamp column
+crime_data<- crime_data %>%  mutate(TIMESTAMP =make_datetime(YEAR, MONTH, DAY, HOUR,MINUTE))
+
+
+head(crime_data)
+
+```
+
+
+
+Reordering columns in dataset for better readability.
+
+
+```{r}
+
+
+## reordering columns to put date forward and removing minutes column as we are not analyzing data at minute level
+
+
+crime_data <- crime_data[ ,c(10,2,3,4,5, 8,9,7,1) ]
+
+
+## filtering data upto 2017 as 2018 is not over yet
+crime_data<-  crime_data %>% filter(YEAR<2018)
+
+```
+
+
+This is how final dataset looks like after the preparation steps. 
+
+
+```{r}
+head(crime_data)
+```
+
+
+### Basic Exploration and Analysis of Vancouver Crime data
+
+
+#### **Yearly Crime numbers** 
+
+The following plot shows the yearly crime numbers in City of Vancouver.
+
+
+```{r}
+ options(repr.plot.width = 6, repr.plot.height = 7)
+   bar_chart_years<- 
+    ggplot(crime_data,aes(x= YEAR))+
+    geom_histogram(binwidth = (max(crime_data$YEAR)-min(crime_data$YEAR))/28, fill ="royalblue3" )+
+    labs(y = "Number of crimes", x= "Year", title ="Crimes in Vancouver over last few years")+
+    theme(axis.text.x = element_text(angle = 50, vjust = 0.5),
+          panel.background = element_rect(fill =   "lavender"))+
+    scale_x_continuous(breaks = unique(crime_data$YEAR))
+
+
+bar_chart_years
+   
+```
+
+The crime numbers show a dowwnward trent till 2012-2013. However, after 2013 there is upward trend.
+
+
+#### **Crime Categories**
+
+
+The following plot shows crimes in all years based on crime types.
+
+```{r}
+ 
+   bar_chart_types <- ggplot(crime_data, aes(TYPE))+
+     geom_bar(fill = "royalblue3")+ 
+     labs(x="Crime Type", y="Number of crimes", title = "Crime categories")+
+     theme(axis.text.x = element_text(angle = 90,vjust = 0.5), panel.background = element_rect(fill = "lavender"))
+     
+bar_chart_types
+```
+
+Clearly **Theft from Vehicle** accounts to the maximum number of crimes reported by a big margin in last 15 years. While Crimes for categories **Homicide** and **Vehicle Collision or Pedestrian Struck (with Fatality)** accounts for the minimum numbers. 
+
+Also categories "Vehicle Collision or Pedestrian Struck (with Fatality)" and "Vehicle Collision or Pedestrian Struck (with Injury)" have small number and are closely related. So clubbing them into one single category**(Veh. collision/Pedestrian struck(Injury & Fatality))** for better analysis. 
+
+
+Lastly, clubbing togethe "Theft of Vehicle" and "Theft of Bicycle" into a single crime category **Theft of Vechicle/Bicycle** Following is the R code which does that. 
+
+```{r}
+ 
+   crime_data$TYPE<- as.character(crime_data$TYPE)
+ 
+   crime_data$TYPE<-sapply(crime_data$TYPE, function(x){ifelse(x =="Vehicle Collision or Pedestrian Struck (with Fatality)"|x=="Vehicle Collision or Pedestrian Struck (with Injury)",
+                                            "Veh. collision/Pedestrian struck(Injury & Fatality)",x )})
+    
+   
+   crime_data$TYPE<-sapply(crime_data$TYPE, function(x){ifelse(x =="Theft of Vehicle"|x=="Theft of Bicycle",
+                                                               "Theft of Vechicle/Bicycle",x )})
+   crime_data$TYPE <-as.factor(crime_data$TYPE)
+   
+```
+
+
+Plotting crime by categories again with modified labels. 
+
+```{r}
+ 
+   bar_chart_types <- ggplot(crime_data, aes(TYPE))+
+     geom_bar(fill = "royalblue3")+ 
+     labs(x="Crime Type", y="Number of crimes", title = "Vancouver Crime numbers by Crime Types")+
+     theme(axis.text.x = element_text(angle = 90,vjust = 0.5), panel.background = element_rect(fill = "lavender"))
+   
+   bar_chart_types
+
+```
+#### **Vancouver Crime by location**
+
+
+
+Following code provides information about the crime based on neighbourhood location in city of Vancouver
+
+```{r}
+bar_chart_loc <- ggplot(crime_data, aes(NEIGHBOURHOOD))+
+     geom_bar(fill = "royalblue3")+ 
+     labs(x="Region", y="Number of crimes", title = "Vancouver Crime numbers by Region")+
+     theme(axis.text.x = element_text(angle = 90,vjust = 0.5), panel.background = element_rect(fill = "lavender"))
+   
+   bar_chart_loc
+```
+
+Clearly the crime numbers indicate that maximum number of crimes are reported from **Central Business District**  while the minmum numbers came from **Musqueam**. This could be due to how densely populated is Downtown(Central Business District) area and other factors for which city of Vancouver's census information is required. 
+
+### Digging deeper into Crime data
+
+So far we have checked crime numbers for different years, locations and types. It is quite imperative to see how all these numbers work together. 
+
+#### Yearly Crime numbers by category and location
+
+Following plot shows detailed information about yearly(2010-2017) crime numbers for each category and for different locations. 
+
+
+```{r}
+
+
+
+plot_all <- ggplot(crime_data %>% filter(YEAR>2009), aes(NEIGHBOURHOOD, fill = TYPE))+
+     geom_bar()+ 
+     labs(x="Region", y="Number of crimes", title = "Vancouver yearly crime numbers")+
+     theme(axis.text.x = element_text(angle = 90,vjust = 0.5), 
+           panel.background = element_rect(fill = "lavender"),
+           legend.text = element_text(size = 7), legend.title = element_blank(), legend.position = "bottom")+
+     facet_wrap(~YEAR, ncol =2)
+
+
+
+
+ggsave("plot_all.png", width =16, height = 9)
+
+plot_all
+```
+
+
+ The plot shows quite useful information. 
+ * Yearly crime numbers and trend is similar for each category and location
+ * The plot clearly shows that neighbourhood information for crimes against a person is kept private and not revealed by city of Vancouver. 
+ * The trend  of crimes overall for all years and for each individual year is similar too. For instance, maximum crime numbers for 2010-17 comes from Central Business District while minimum comes from Stanley park and Musqueam which is true  overall for all years as well. 
+  
+
+
+Checking crime numbers overall for all years for each crime type and location. 
+
+
+
+```{r}
+
+plot_all2 <- ggplot(crime_data, aes(NEIGHBOURHOOD, fill = TYPE))+
+     geom_bar()+ 
+     labs(x="Region", y="Number of crimes", title = "Vancouver yearly crime numbers")+
+     theme(axis.text.x = element_text(angle = 90,vjust = 0.5), 
+           panel.background = element_rect(fill = "lavender"),
+           legend.text = element_text(size = 7), legend.title = element_blank(), legend.position = "bottom")
+
+plot_all2
+```
+
+
+The plot clearly indicates that overall trend for all years is quite similar to individual years' crime distribution for locations and crime types. 
+
+
+#### Crime numbers and timestamp
+
+
+It will be interesting to see which month of a year, day of the week and hour of the day crimes were reported. Following section discusses relationship of crime numbers with timestamp. 
+
+
+Following R code provides **crime statistics on monthly basis** for last 15 years
+
+```{r}
+
+bar_chart_monthly_all_years <- ggplot(filter(crime_data, !is.na(TIMESTAMP) ), aes(month(TIMESTAMP, label=TRUE), fill = TYPE))+
+  geom_bar()+ 
+  labs(x="Month", y="Number of crimes", title = "Monthly Crime numbers for all years")+
+  theme(axis.text.x = element_text(angle = 90,vjust = 0.5),
+        panel.background = element_rect(fill = "lavender"),
+        legend.position = "bottom")
+
+bar_chart_monthly_all_years
+
+```
+
+
+Let check if trend is similar is similar for last 4 years.
+
+
+```{r}
+
+## for individual years to see if trend is similar
+bar_chart_monthly_last4_years <- ggplot(filter(crime_data, !is.na(TIMESTAMP), YEAR>2013 ), aes(month(TIMESTAMP, label=TRUE), fill = TYPE))+
+  geom_bar()+ 
+  labs(x="Month", y="Number of crimes", title = "Monthly Crime numbers last 4 years")+
+  theme(axis.text.x = element_text(angle = 90,vjust = 0.5),
+        panel.background = element_rect(fill = "lavender"),
+        legend.position = "bottom")+
+  facet_wrap(~YEAR,ncol=2)
+
+bar_chart_monthly_last4_years
+```
+
+Clearly the numbers are similar for each year. Intersting observation is Winter months(especially **February**) has **lowest** number of crimes reported while **fall months** have compartvely **more** crimes reported.
+
+
+
+
+
+Now checking **crime statistics for day of a weeek** for all years. 
+
+
+```{r}
+##day wise crime data all years
+
+bar_chart_daily_all_years <- ggplot(filter(crime_data, !is.na(TIMESTAMP) ), aes(wday(TIMESTAMP, label=TRUE), fill = TYPE))+
+  geom_bar()+ 
+  labs(x="Day", y="Number of crimes", title = "Daily Crime numbers for all years")+
+  theme(axis.text.x = element_text(angle = 90,vjust = 0.5),
+        panel.background = element_rect(fill = "lavender"),
+        legend.position = "bottom")
+
+bar_chart_daily_all_years
+```
+
+
+
+Comparing the trend with last 4 years. 
+
+
+
+```{r}
+
+bar_chart_daily_last4_years <- ggplot(filter(crime_data, !is.na(TIMESTAMP), YEAR>2013 ), aes(wday(TIMESTAMP, label=TRUE), fill = TYPE))+
+  geom_bar()+ 
+  labs(x="Day", y="Number of crimes", title = "Daily Crime numbers last 4 years")+
+  theme(axis.text.x = element_text(angle = 90,vjust = 0.5),
+        panel.background = element_rect(fill = "lavender"),
+        legend.position = "bottom")+
+  facet_wrap(~YEAR,ncol=2)
+
+bar_chart_daily_last4_years
+
+```
+
+The day wise overall trends for all years and for last 4 years is similar.
+* The maximum number of crimes are reported for weekends(maximum on Fridays)
+* The minimum number of crimes are reported for Wednesdays and Thursdays. 
+* Another interesting observation is the crime numbers are more for purple and blue regions over weekends which is theft of and theft from vehicles. 
+
+
+
+Now lets check **crime numbers for particular hour of the day**
+
+```{r}
+
+## hour of the day crimes
+bar_chart_hourly_all_years <- ggplot(filter(crime_data, !is.na(TIMESTAMP) ), aes(hour(TIMESTAMP), fill = TYPE))+
+  geom_bar()+ 
+  labs(x="Hour of the day", y="Number of crimes", title = "Hourly Crime numbers for all years")+
+  theme(axis.text.x = element_text(angle = 90,vjust = 0.5),
+        panel.background = element_rect(fill = "lavender"),
+        legend.position = "bottom")+
+  scale_x_continuous(breaks = unique(hour(crime_data$TIMESTAMP)))
+
+bar_chart_hourly_all_years
+
+```
+
+Comparing times for last 4 years
+
+```{r}
+
+bar_chart_hourly_last4_years <- ggplot(filter(crime_data, !is.na(TIMESTAMP), YEAR>2013 ), aes(hour(TIMESTAMP), fill = TYPE))+
+  geom_bar()+ 
+  labs(x="Hour of the day", y="Number of crimes", title = "Daily Crime numbers last 4 years")+
+  theme(axis.text.x = element_text(angle = 90,vjust = 0.5),
+        panel.background = element_rect(fill = "lavender"),
+        legend.position = "bottom")+
+  facet_wrap(~YEAR,ncol=2)
+
+
+bar_chart_hourly_last4_years
+```
+
+
+Hourly overall trends for all years is also similar ot the overall trends for individual years. 
+* Maximum number of crimes are reported for late evening(around 18:00 hours)
+* Early morning hours 02:00- 05:00 have less number of crimes reported 
+
+
+
+
+### Interactive maps for last two years Theft of Vehicles
+
+
+As there are 549833 observations for last 15 years crime data, It will not be practically feasible to analyze locations of all crime points on map.So using mapview package to **plot Theft of vehicle and Theft from Vehicle for last two years** to see the location of crime reported based on latitude and longitude values calculated earlier. 
+
+
+```{r}
+## loading shape file for last two years
+  
+  yvr_shp1 <- readOGR(".", "crime_shp_2016")
+  yvr_shp2 <- readOGR(".", "crime_shp_2017")
+  
+## combining two shape files
+yvr_shp<-  rbind(yvr_shp1,yvr_shp2)
+
+##converting into data frame to perform filtering operations
+yvr_shp_df <- as.data.frame(yvr_shp)
+
+## filtering for theft of and theft from vechicle data for last two years
+yvr_shp_df_2016 <-  yvr_shp_df %>% filter( (TYPE =="Theft from Vehicle"| TYPE == "Theft of Bicycle"| TYPE =="Theft of Vehicle"),YEAR ==2016)
+   
+yvr_shp_df_2017 <-  yvr_shp_df %>% filter( (TYPE =="Theft from Vehicle"| TYPE == "Theft of Bicycle"| TYPE =="Theft of Vehicle"), YEAR ==2017)
+
+## Converting back to Spatial points data frame to plot on map
+yvr_theft_vech_2016 <- SpatialPointsDataFrame(coords = yvr_shp_df_2016[,c(9,10)], data = yvr_shp_df_2016, proj4string = CRS("+proj=utm +zone=10 +datum=NAD83 +units=m +no_defs +ellps=GRS80
++towgs84=0,0,0"))
+
+
+yvr_theft_vech_2017 <- SpatialPointsDataFrame(coords = yvr_shp_df_2017[,c(9,10)], data = yvr_shp_df_2017, proj4string = CRS("+proj=utm +zone=10 +datum=NAD83 +units=m +no_defs +ellps=GRS80
++towgs84=0,0,0"))
+
+
+
+map2016 <- mapview(yvr_theft_vech_2016, zcol = c("TYPE","N_HOOD"), legend =TRUE)
+map2017<-mapview(yvr_theft_vech_2017, zcol = c("TYPE","N_HOOD"), legend =TRUE)
+
+map2016
+map2017
+
+```
+
+
+
+
+
+### Conclusion and future scope
+
+The data set analysis and visualization gives fair bit of insight on crimes in city of Vancouver. 
+
+The data set clearly indicate certain patterns of crime numbers when it comes to 
+* Location (locations like Dowtomwn have more crimes reported)
+* Type of Crime(Theft of Vehicle and Theft from Vehicle accounr for max)
+* Time of the day
+* Time in year
+* Day of the week
+
+
+This can definitely be helpful for City of Vancouver's police department to come up with plans to control and prevent crime based on location, type and timestamps of crime. 
+
+Also, the data set can be clubbed with demographic and census information of the City to come up with features/variables which can be modeled to predict crime info. 
+
+
+
+### Disclaimer
+The release of Vancouver Police Department (VPD) crime data is intended to enhance community awareness of policing activity in Vancouver. Users are cautioned not to rely on the information provided to make decisions about the specific safety level of a specific location or area. By using this data the user agrees and understands that neither the Vancouver Police Department, Vancouver Police Board nor the City of Vancouver assumes liability for any decisions made or actions taken or not taken by the user in reliance upon any information or data provided. 
+
+While every effort has been made to be transparent in this process, users should be aware that this data is designed to provide individuals with a general overview of incidents falling into several crime categories. The information provided therefore does not reflect the total number of calls or complaints made to the VPD. Please refer to the FAQ (http://geodash.vpd.ca/docs/VPD%20GeoDASH%20FAQs.pdf) for further details. The data provided is based upon information contained in the VPD Records Management System. The crime classification and file status may change at any time based on the dynamic nature of police investigations. The VPD has taken great care to protect the privacy of all parties involved in the incidents reported. No personal or identifying information has been provided in the data. Locations for reported incidents involving Offences Against a Person have been deliberately randomized to several blocks and offset to an intersection. No time or street location name will be provided for these offences. For property related offences, the VPD has provided the location to the hundred block of these incidents within the general area of the block. All data must be considered offset and users should not interpret any locations as related to a specific person or specific property.
+
+
+
+
+
+
