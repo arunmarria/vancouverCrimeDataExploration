@@ -2,7 +2,7 @@
 Historic information of Crimes in a city can be used to prevent crimes similar nature in future. Many city bodies are already doing this. In this data analysis project, I will explore the City of Vancouver's crime data(2003 - 2017) and see if we can see any trends in crime occurrences which in turn can help in predicting future crimes. Details of project can found in [Markdown document](https://github.com/arunmarria/vancouverCrimeDataExploration/blob/master/yvr_crime_data.md)
 
 
-!(CPT105324340_hd.jpg)
+![Photo Credits CityNews](/CPT105324340_hd.jpg)
 
 The project uses [City of Vancouver's](https://vancouver.ca/) publicly available [data catalogue](https://data.vancouver.ca/datacatalogue/crime-data.htm)to analyze crime numbers and patterns. 
 
