@@ -475,8 +475,8 @@ yvr_theft_vech_2017 <- SpatialPointsDataFrame(coords = yvr_shp_df_2017[,c(9,10)]
 map2016 <- mapview(yvr_theft_vech_2016, zcol = c("TYPE","N_HOOD"), legend =TRUE)
 map2017<-mapview(yvr_theft_vech_2017, zcol = c("TYPE","N_HOOD"), legend =TRUE)
 
-map2016
-map2017
+##map2016
+##map2017
 
 ```
 
